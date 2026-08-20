@@ -78,6 +78,7 @@ function renderNodes(
     readonly projections?: NodeProjectionCache
     readonly locale?: TestLocale
     readonly preparation?: ToolPreparationPresentation | null
+    readonly ownerProps?: Readonly<Record<string, unknown>>
   } = {},
 ) {
   const chat = makeChat(nodes)
@@ -102,6 +103,7 @@ function renderNodes(
   const result = render(
     <Fragment>
       {nodes.map(node => createElement(Decorated, {
+        ...options.ownerProps,
         key: node.key,
         node,
         sessionId: 'session-a',
@@ -114,6 +116,29 @@ function renderNodes(
 }
 
 describe('decorated chat renderer', () => {
+  it('浅投影时透传 rc.8 新增的图片 renderer owner prop', () => {
+    const context = makeNode('context', 'context')
+    const closing = makeAssistant('closing', {
+      blocks: [
+        { kind: 'reasoning', text: 'private reasoning' },
+        { kind: 'text', text: 'public answer' },
+      ],
+    })
+    const tail = makeTail('tail', closing)
+    const renderMessageImages = vi.fn(() => null)
+    const received: unknown[] = []
+    const Original = (props: ChatRendererProps) => {
+      received.push(props.renderMessageImages)
+      return <div>{(props.node as ChatConversationViewNode).key}</div>
+    }
+
+    renderNodes([context, closing, tail], Original, {
+      ownerProps: { renderMessageImages },
+    })
+
+    expect(received).toContain(renderMessageImages)
+  })
+
   it('同一 turn 的多个 renderer 共享一次展示规划构建', () => {
     const context = makeNode('context', 'context')
     const closing = makeAssistant('closing')

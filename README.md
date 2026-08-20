@@ -37,7 +37,7 @@ dsh plugin --profile web remove dsh-message-fold
 
 ## 兼容边界
 
-当前版本锁定 DSH `0.1.0-rc.7`、Cordis `4.0.1` 和 React 18。DSH 暂无正式的 renderer decorator API，因此唯一的临时兼容点集中在 `src/client/adapter/dsh-slot-renderer-decorator.ts`：业务组件只依赖 `RendererDecoratorPort`，将来可直接替换适配器。
+当前版本锁定 DSH `0.1.0-rc.8`、Cordis `4.0.1` 和 React 18。DSH 暂无正式的 renderer decorator API，因此唯一的临时兼容点集中在 `src/client/adapter/dsh-slot-renderer-decorator.ts`：业务组件只依赖 `RendererDecoratorPort`，将来可直接替换适配器。
 
 适配器采用可撤销 lease，并在不兼容时整体 fail-open。外部装饰器后来包在本插件外层时，插件卸载不会覆盖它；内部 wrapper 会立即退化为原 renderer 的透明透传。
 

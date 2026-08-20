@@ -36,7 +36,7 @@ dsh plugin --profile web remove dsh-message-fold
 
 ## Compatibility Boundaries
 
-The current version is pinned to DSH `0.1.0-rc.7`, Cordis `4.0.1`, and React 18. DSH does not yet provide an official renderer decorator API, so the only temporary compatibility layer is isolated in `src/client/adapter/dsh-slot-renderer-decorator.ts`. Business components depend only on `RendererDecoratorPort`, allowing the adapter to be replaced directly in the future.
+The current version is pinned to DSH `0.1.0-rc.8`, Cordis `4.0.1`, and React 18. DSH does not yet provide an official renderer decorator API, so the only temporary compatibility layer is isolated in `src/client/adapter/dsh-slot-renderer-decorator.ts`. Business components depend only on `RendererDecoratorPort`, allowing the adapter to be replaced directly in the future.
 
 The adapter uses a revocable lease and fails open as a whole when incompatible. If an external decorator is later wrapped around this plugin, uninstalling the plugin will not overwrite it; the internal wrapper immediately degrades into a transparent pass-through to the original renderer.
 

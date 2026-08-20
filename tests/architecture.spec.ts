@@ -51,7 +51,9 @@ describe('架构边界', () => {
         bundle: { patch: string }
         client: { platform: string; inject: string[] }
       }
+      dependencies: Record<string, string>
       peerDependencies: Record<string, string>
+      devDependencies: Record<string, string>
     }
     expect(manifest.name).toBe('dsh-message-fold')
     expect(manifest.dsh).toEqual({
@@ -69,8 +71,16 @@ describe('架构边界', () => {
       },
     })
     expect(manifest.peerDependencies['@deepseek-ai/cordis']).toBe('4.0.1')
-    expect(manifest.peerDependencies['@deepseek-ai/dsh-client-runtime']).toBe('0.1.0-rc.7')
-    expect(manifest.peerDependencies['@deepseek-ai/dsh-client-ui-settings']).toBe('0.1.0-rc.7')
+    expect(manifest.peerDependencies['@deepseek-ai/dsh-client-runtime']).toBe('0.1.0-rc.8')
+    expect(manifest.peerDependencies['@deepseek-ai/dsh-client-ui-settings']).toBe('0.1.0-rc.8')
+    expect(manifest.peerDependencies['@deepseek-ai/dsh-settings']).toBe('0.1.0-rc.8')
+    expect(manifest.dependencies).not.toHaveProperty('@deepseek-ai/dsh-settings')
+    expect(manifest.dependencies).not.toHaveProperty('react')
+    expect(manifest.peerDependencies).not.toHaveProperty('@deepseek-ai/dsh-client-ui-primitives')
+    expect(manifest.peerDependencies).not.toHaveProperty('@deepseek-ai/dsh-client-ui-slots')
+    expect(manifest.devDependencies['@deepseek-ai/dsh-client-ui-primitives']).toBe('0.1.0-rc.8')
+    expect(manifest.devDependencies['@deepseek-ai/dsh-client-ui-slots']).toBe('0.1.0-rc.8')
+    expect(manifest.devDependencies.react).toBe('^18.2.0')
   })
 
   it('工具准备实现不扫描完整 ChatNodeStore，也不注册额外 Conversation Definition', () => {
