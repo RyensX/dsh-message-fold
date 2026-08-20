@@ -9,6 +9,7 @@ import {
 import {
   PresentationStateStore, toolGroupStateKey, turnStateKey,
 } from '../presentation/state-store.ts'
+import type { NodeProjectionCache } from '../presentation/node-projection-cache.ts'
 import type { ToolPreparationPresentation } from '../presentation/tool-preparation.ts'
 import type { TurnPresentationCache } from '../presentation/turn-presentation-cache.ts'
 import { DisclosureButton } from './DisclosureButton.tsx'
@@ -28,6 +29,7 @@ export interface LocaleSnapshotSource {
 export interface DecoratedRendererDependencies {
   readonly state: PresentationStateStore
   readonly presentations: TurnPresentationCache
+  readonly projections: NodeProjectionCache
   readonly locale: LocaleSnapshotSource
   readonly t: MessageFoldTranslate
 }
@@ -60,25 +62,6 @@ function turnOf(node: ChatConversationViewNode): number | null {
   if (location?.kind !== 'turn' && location?.kind !== 'step') return null
   const turn = record(location.turn)?.turn
   return typeof turn === 'number' ? turn : null
-}
-
-function withoutReasoning(node: ChatConversationViewNode): ChatConversationViewNode {
-  const data = record(node.data)
-  if (data === null || !Array.isArray(data.blocks)) return node
-  const blocks = data.blocks.filter(block => record(block)?.kind !== 'reasoning')
-  return blocks.length === data.blocks.length ? node : { ...node, data: { ...data, blocks } }
-}
-
-function withoutEmptyReasoning(node: ChatConversationViewNode): ChatConversationViewNode {
-  const data = record(node.data)
-  if (data === null || !Array.isArray(data.blocks)) return node
-  const blocks = data.blocks.filter((block) => {
-    const value = record(block)
-    return value?.kind !== 'reasoning'
-      || typeof value.text !== 'string'
-      || value.text.trim() !== ''
-  })
-  return blocks.length === data.blocks.length ? node : { ...node, data: { ...data, blocks } }
 }
 
 /** 让样式层只移除插件明确隐藏的 DSH flow 行，避免空行继续占用 column gap。 */
@@ -149,7 +132,7 @@ function ActiveDecoratedRenderer({
     />
   ) : null
 
-  const displayNode = withoutEmptyReasoning(props.node)
+  const displayNode = dependencies.projections.withoutEmptyReasoning(props.node)
   let body: ReactNode
   let bodyIsOnlyHiddenMarker = false
   if (nodePlan.toolGroup !== undefined) {
@@ -188,7 +171,7 @@ function ActiveDecoratedRenderer({
     }
   } else if (nodePlan.zone === 'closing') {
     const closing = collapsed && nodePlan.stripReasoningWhenCollapsed === true
-      ? originalNode(original, props, withoutReasoning(props.node))
+      ? originalNode(original, props, dependencies.projections.withoutReasoning(props.node))
       : body
     rendered = turnButton === null
       ? closing

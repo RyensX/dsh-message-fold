@@ -9,6 +9,7 @@ import {
   MessageFoldSettingsSection, type MessageFoldSettingsSectionInjected,
 } from './components/MessageFoldSettingsSection.tsx'
 import { en, NS, zh } from './locales.ts'
+import { NodeProjectionCache } from './presentation/node-projection-cache.ts'
 import { PresentationStateStore } from './presentation/state-store.ts'
 import { ToolPreparationSourceRegistry } from './presentation/tool-preparation-source.ts'
 import { TurnPresentationCache } from './presentation/turn-presentation-cache.ts'
@@ -22,6 +23,7 @@ export const inject = [
 export function apply(ctx: ClientContext): void {
   const state = new PresentationStateStore()
   const presentations = new TurnPresentationCache()
+  const projections = new NodeProjectionCache()
   const t = ctx.locale.bind(NS)
   const settings = ctx.settingsScope.bind<MessageFoldSettings>({
     namespace: MESSAGE_FOLD_SETTINGS_NAMESPACE,
@@ -67,6 +69,7 @@ export function apply(ctx: ClientContext): void {
     return adapter.install((entryKey, original) => createDecoratedChatRenderer(entryKey, original, {
       state,
       presentations,
+      projections,
       locale,
       t,
     }))

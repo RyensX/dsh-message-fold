@@ -14,6 +14,7 @@ import {
   createDecoratedChatRenderer,
 } from '../src/client/components/create-decorated-renderer.tsx'
 import { buildTurnPresentation } from '../src/client/presentation/build-turn-presentation.ts'
+import { NodeProjectionCache } from '../src/client/presentation/node-projection-cache.ts'
 import {
   en, zh, type MessageFoldKey, type MessageFoldTranslate,
 } from '../src/client/locales.ts'
@@ -68,6 +69,7 @@ function renderNodes(
   options: {
     readonly state?: PresentationStateStore
     readonly presentations?: TurnPresentationCache
+    readonly projections?: NodeProjectionCache
     readonly locale?: TestLocale
     readonly preparation?: ToolPreparationPresentation | null
   } = {},
@@ -78,6 +80,7 @@ function renderNodes(
     selector(snapshot)
   const state = options.state ?? new PresentationStateStore()
   const presentations = options.presentations ?? new TurnPresentationCache()
+  const projections = options.projections ?? new NodeProjectionCache()
   const locale = options.locale ?? new TestLocale()
   const preparation = options.preparation ?? null
   const useMessageFoldPreparation = <Selected,>(
@@ -86,6 +89,7 @@ function renderNodes(
   const Decorated = createDecoratedChatRenderer('test', Original, {
     state,
     presentations,
+    projections,
     locale,
     t: locale.t,
   }) as ComponentType<ChatRendererProps>
@@ -100,7 +104,7 @@ function renderNodes(
       }))}
     </Fragment>,
   )
-  return { ...result, state, presentations, locale }
+  return { ...result, state, presentations, projections, locale }
 }
 
 describe('decorated chat renderer', () => {
@@ -184,6 +188,31 @@ describe('decorated chat renderer', () => {
     expect(screen.getByText('耗时 3秒')).toBeTruthy()
     act(() => { locale.setActive('en') })
     expect(screen.getByText('Worked for 3s')).toBeTruthy()
+  })
+
+  it('重复渲染时复用最终回答的 reasoning 展示投影', () => {
+    const context = makeNode('context', 'context')
+    const closing = makeAssistant('closing', {
+      blocks: [
+        { kind: 'reasoning', text: 'private reasoning' },
+        { kind: 'text', text: 'public answer' },
+      ],
+    })
+    const tail = makeTail('tail', closing)
+    const locale = new TestLocale()
+    const received: ChatConversationViewNode[] = []
+    const Original = ({ node }: ChatRendererProps) => {
+      const value = node as ChatConversationViewNode
+      if (value.key === 'closing') received.push(value)
+      return <div>{value.key}</div>
+    }
+    renderNodes([context, closing, tail], Original, { locale })
+    const first = received.at(-1)
+
+    act(() => { locale.setActive('en') })
+
+    expect(first).not.toBe(closing)
+    expect(received.at(-1)).toBe(first)
   })
 
   it('前置 context 存在时仍把 turn 摘要渲染在 user 与工具之间', () => {
