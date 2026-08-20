@@ -9,7 +9,7 @@ export const zh = {
   'turn.earlier': '{count} 条较早消息',
   'turn.expand': '展开中间活动',
   'turn.collapse': '折叠中间活动',
-  'tools.count': '{count} 次工具调用',
+  'tools.count': '已调用 {count} 次工具',
   'tools.expand': '展开工具调用',
   'tools.collapse': '折叠工具调用',
   'tools.read': '读取 {count}',
@@ -18,7 +18,8 @@ export const zh = {
   'tools.command': '命令 {count}',
   'tools.web': 'Web {count}',
   'tools.other': '其他 {count}',
-  'tools.running': '运行中 {count}',
+  'tools.active': '正在调用 {tools}',
+  'tools.activeSeparator': '、',
   'tools.failed': '失败 {count}',
   'duration.seconds': '{seconds}秒',
   'duration.minutes': '{minutes}分{seconds}秒',
@@ -42,7 +43,7 @@ export const en = {
   'turn.earlier': '{count} earlier messages',
   'turn.expand': 'Expand intermediate activity',
   'turn.collapse': 'Collapse intermediate activity',
-  'tools.count': '{count} tool calls',
+  'tools.count': 'Called {count} tools',
   'tools.expand': 'Expand tool calls',
   'tools.collapse': 'Collapse tool calls',
   'tools.read': 'Read {count}',
@@ -51,7 +52,8 @@ export const en = {
   'tools.command': 'Command {count}',
   'tools.web': 'Web {count}',
   'tools.other': 'Other {count}',
-  'tools.running': 'Running {count}',
+  'tools.active': 'Calling {tools}',
+  'tools.activeSeparator': ', ',
   'tools.failed': 'Failed {count}',
   'duration.seconds': '{seconds}s',
   'duration.minutes': '{minutes}m {seconds}s',
@@ -103,11 +105,16 @@ const CATEGORY_KEYS = {
 
 export function toolSummaryText(summary: ToolSummary, t: MessageFoldTranslate): string {
   const parts = [t('tools.count', { count: summary.total })]
-  for (const category of Object.keys(CATEGORY_KEYS) as ToolCategory[]) {
+  for (const category of summary.categoryOrder) {
     const count = summary.categories[category]
     if (count > 0) parts.push(t(CATEGORY_KEYS[category], { count }))
   }
-  if (summary.running > 0) parts.push(t('tools.running', { count: summary.running }))
+  if (summary.activeToolNames.length > 0) {
+    const counts = new Map<string, number>()
+    for (const name of summary.activeToolNames) counts.set(name, (counts.get(name) ?? 0) + 1)
+    const tools = [...counts].map(([name, count]) => count === 1 ? name : `${name} ×${count}`)
+    parts.push(t('tools.active', { tools: tools.join(t('tools.activeSeparator')) }))
+  }
   if (summary.failed > 0) parts.push(t('tools.failed', { count: summary.failed }))
   return parts.join(' · ')
 }

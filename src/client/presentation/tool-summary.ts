@@ -2,7 +2,7 @@ import type { ChatNode, ToolCategory, ToolSummary } from './model.ts'
 
 type UnknownRecord = Record<string, unknown>
 
-const CATEGORY_ORDER: readonly ToolCategory[] = ['read', 'search', 'modify', 'command', 'web', 'other']
+const TOOL_CATEGORIES: readonly ToolCategory[] = ['read', 'search', 'modify', 'command', 'web', 'other']
 
 function record(value: unknown): UnknownRecord | null {
   return typeof value === 'object' && value !== null ? value as UnknownRecord : null
@@ -46,8 +46,11 @@ export function summarizeToolNodes(nodes: readonly ChatNode[]): ToolSummary | nu
   const roots = nodes.map(toolRoot)
   if (roots.some(root => root === null)) return null
 
-  const categories = Object.fromEntries(CATEGORY_ORDER.map(category => [category, 0])) as Record<ToolCategory, number>
+  const categories = Object.fromEntries(TOOL_CATEGORIES.map(category => [category, 0])) as Record<ToolCategory, number>
   const visited = new Set<object>()
+  const parents = new Map<UnknownRecord, Set<UnknownRecord>>()
+  const runningBlocks: UnknownRecord[] = []
+  const invocations: Array<{ category: ToolCategory; startedAt: number; discovery: number }> = []
   const pending = [...roots] as UnknownRecord[]
   let total = 0
   let running = 0
@@ -58,21 +61,67 @@ export function summarizeToolNodes(nodes: readonly ChatNode[]): ToolSummary | nu
     if (block === undefined || visited.has(block)) continue
     const settled = block.kind === 'tool-result'
     const subCalls = block.subCalls
+    const callTime = settled ? block.callTime : block.time
     if (typeof block.callId !== 'string'
       || !Array.isArray(subCalls)
       || (block.kind !== undefined && !settled)
-      || (settled && typeof block.isError !== 'boolean')) return null
+      || (settled && typeof block.isError !== 'boolean')
+      || (settled && callTime !== null && (typeof callTime !== 'number' || !Number.isFinite(callTime)))
+      || (!settled && (typeof block.name !== 'string' || block.name === ''
+        || typeof callTime !== 'number' || !Number.isFinite(callTime)))) return null
     visited.add(block)
     total += 1
-    categories[categoryOf(block)] += 1
-    if (!settled) running += 1
+    const category = categoryOf(block)
+    categories[category] += 1
+    invocations.push({
+      category,
+      // callTime=null 表示调用起点早于当前窗口，因此排在窗口内已知调用之前。
+      startedAt: callTime === null ? Number.NEGATIVE_INFINITY : callTime as number,
+      discovery: invocations.length,
+    })
+    if (!settled) {
+      running += 1
+      runningBlocks.push(block)
+    }
     if (settled && block.isError === true) failed += 1
     for (const child of subCalls) {
       const childRecord = record(child)
       if (childRecord === null) return null
+      const childParents = parents.get(childRecord) ?? new Set<UnknownRecord>()
+      childParents.add(block)
+      parents.set(childRecord, childParents)
       pending.push(childRecord)
     }
   }
 
-  return { total, running, failed, categories }
+  // 运行中的父调用只是等待其运行中子调用；摘要只展示实际活跃的叶子。
+  const hasRunningDescendant = new Set<UnknownRecord>()
+  for (const runningBlock of runningBlocks) {
+    const ancestors = [...(parents.get(runningBlock) ?? [])]
+    const seen = new Set<UnknownRecord>()
+    for (let index = 0; index < ancestors.length; index += 1) {
+      const ancestor = ancestors[index]
+      if (ancestor === undefined || seen.has(ancestor)) continue
+      seen.add(ancestor)
+      hasRunningDescendant.add(ancestor)
+      for (const parent of parents.get(ancestor) ?? []) ancestors.push(parent)
+    }
+  }
+  const activeToolNames = runningBlocks
+    .filter(block => !hasRunningDescendant.has(block))
+    .sort((left, right) => (left.time as number) - (right.time as number))
+    .map(block => block.name as string)
+  const categoryOrder: ToolCategory[] = []
+  const orderedCategories = new Set<ToolCategory>()
+  invocations.sort((left, right) => {
+    if (left.startedAt !== right.startedAt) return left.startedAt < right.startedAt ? -1 : 1
+    return left.discovery - right.discovery
+  })
+  for (const { category } of invocations) {
+    if (orderedCategories.has(category)) continue
+    orderedCategories.add(category)
+    categoryOrder.push(category)
+  }
+
+  return { total, running, activeToolNames, failed, categoryOrder, categories }
 }

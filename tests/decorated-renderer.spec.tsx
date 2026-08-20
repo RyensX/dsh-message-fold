@@ -350,7 +350,7 @@ describe('decorated chat renderer', () => {
     expect(screen.getByText('public answer')).toBeTruthy()
 
     await user.click(turnButton)
-    expect(screen.getByRole('button', { name: /展开工具调用: 2 次工具调用.*失败 1/ })).toBeTruthy()
+    expect(screen.getByRole('button', { name: /展开工具调用: 已调用 2 次工具.*失败 1/ })).toBeTruthy()
     expect(screen.getByTestId('original-context')).toBeTruthy()
     expect(screen.queryByTestId('think-row')).toBeNull()
     expect(JSON.stringify([context, first, second, closing])).toBe(before)

@@ -9,6 +9,7 @@ Codex-style conversation message folding for DeepSeek Harness.
 ## Display Rules
 
 - Two or more consecutive tool calls are combined into a single expandable summary; a single tool call continues to use DSH's original renderer.
+- A merged group uses the format "Called 3 tools · Read 2 · Command 1 · Calling bash, open"; categories such as Read and Command are ordered by each category's first invocation, active leaf tools appear in start order, parallel calls with the same name are counted together, and only the "Calling" segment is removed after all calls settle.
 - Once a turn has a reliable final answer, intermediate assistant messages, context, commands, compactions, retries, tools, and workflows are collapsed under "Worked for {duration}" by default.
 - The final answer, errors, turn-closing nodes, failed workflows, and any content after the final answer always remain visible.
 - Failed tool calls before the final answer are still considered intermediate activity. After expanding the turn, you can view the failure count and details in the tool-group summary.
