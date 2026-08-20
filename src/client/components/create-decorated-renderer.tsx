@@ -1,5 +1,5 @@
 import {
-  Fragment, createElement, useCallback, useSyncExternalStore, type ReactNode,
+  createElement, useCallback, useSyncExternalStore, type ReactNode,
 } from 'react'
 import type { ChatConversationViewNode, ConversationSnapshot } from '@deepseek-ai/dsh-client-runtime/client'
 import type { ChatRenderer, ChatRendererProps } from '../adapter/renderer-decorator-port.ts'
@@ -69,18 +69,37 @@ function hiddenFlowItem(): ReactNode {
   return <span hidden data-dsh-message-fold-hidden="" />
 }
 
+const disabledSubscribe = (_listener: () => void): (() => void) => () => {}
+const disabledSnapshot = (): undefined => undefined
+
 function useStoredFlag(
   store: PresentationStateStore,
   key: string,
   read: (key: string) => boolean | undefined,
+  enabled: boolean,
 ): boolean | undefined {
   const subscribe = useCallback((listener: () => void) => store.subscribe(key, listener), [key, store])
   const getSnapshot = useCallback(() => read(key), [key, read])
-  return useSyncExternalStore(subscribe, getSnapshot, getSnapshot)
+  return useSyncExternalStore(
+    enabled ? subscribe : disabledSubscribe,
+    enabled ? getSnapshot : disabledSnapshot,
+    enabled ? getSnapshot : disabledSnapshot,
+  )
 }
 
 function originalNode(original: ChatRenderer, props: DecoratableProps, node = props.node): ReactNode {
   return createElement(original, node === props.node ? props : { ...props, node })
+}
+
+function useLocaleRevision(
+  dependencies: DecoratedRendererDependencies,
+  enabled: boolean,
+): void {
+  useSyncExternalStore(
+    enabled ? dependencies.locale.subscribe : disabledSubscribe,
+    enabled ? dependencies.locale.getSnapshot : disabledSnapshot,
+    enabled ? dependencies.locale.getSnapshot : disabledSnapshot,
+  )
 }
 
 function ActiveDecoratedRenderer({
@@ -98,16 +117,31 @@ function ActiveDecoratedRenderer({
     [dependencies.presentations, turn],
   )
   const plan = props.useSession(selectPlan)
-  useSyncExternalStore(dependencies.locale.subscribe, dependencies.locale.getSnapshot, dependencies.locale.getSnapshot)
   const preparation = props.useMessageFoldPreparation(value =>
     value?.anchorKey === props.node.key ? value : null)
   const nodePlan = plan?.nodes.get(props.node.key)
+  const observesTurnState = plan?.canCollapse === true && nodePlan !== undefined && (
+    nodePlan.zone === 'collapsible'
+    || (nodePlan.zone === 'closing'
+      && (nodePlan.stripReasoningWhenCollapsed === true || plan.anchorKey === props.node.key))
+  )
   const turnKey = turnStateKey(props.sessionId, turn ?? -1)
-  const groupKey = toolGroupStateKey(props.sessionId, turn ?? -1, nodePlan?.toolGroup?.firstKey ?? props.node.key)
   const readTurn = useCallback((key: string) => dependencies.state.getTurn(key), [dependencies.state])
+  const turnOverride = useStoredFlag(dependencies.state, turnKey, readTurn, observesTurnState)
+  const collapsed = plan?.canCollapse === true ? turnOverride ?? plan.defaultCollapsed : false
+  const isAnchor = plan?.canCollapse === true && plan.anchorKey === props.node.key
+  const groupVisible = nodePlan?.toolGroup !== undefined
+    && !(nodePlan.zone === 'collapsible' && collapsed)
+  const groupKey = toolGroupStateKey(
+    props.sessionId,
+    turn ?? -1,
+    nodePlan?.toolGroup?.firstKey ?? props.node.key,
+  )
   const readGroup = useCallback((key: string) => dependencies.state.getToolGroup(key), [dependencies.state])
-  const turnOverride = useStoredFlag(dependencies.state, turnKey, readTurn)
-  const groupOverride = useStoredFlag(dependencies.state, groupKey, readGroup)
+  const groupOverride = useStoredFlag(dependencies.state, groupKey, readGroup, groupVisible)
+  const groupExpanded = groupOverride ?? false
+  const showsToolDisclosure = groupVisible && nodePlan?.toolGroupRole === 'leader'
+  useLocaleRevision(dependencies, preparation !== null || isAnchor || showsToolDisclosure)
 
   if (plan === null || nodePlan === undefined || turn === null) {
     const originalBody = originalNode(original, props)
@@ -118,9 +152,6 @@ function ActiveDecoratedRenderer({
       </div>
     )
   }
-  const collapsed = plan.canCollapse ? turnOverride ?? plan.defaultCollapsed : false
-  const groupExpanded = groupOverride ?? false
-  const isAnchor = plan.canCollapse && plan.anchorKey === props.node.key
 
   const turnButton = isAnchor ? (
     <DisclosureButton
@@ -199,10 +230,6 @@ export function createDecoratedChatRenderer(
   return function DecoratedChatRenderer(rawProps: ChatRendererProps) {
     const props = decoratableProps(rawProps)
     if (props === null) return createElement(original, rawProps)
-    return (
-      <Fragment>
-        <ActiveDecoratedRenderer original={original} props={props} dependencies={dependencies} />
-      </Fragment>
-    )
+    return <ActiveDecoratedRenderer original={original} props={props} dependencies={dependencies} />
   }
 }

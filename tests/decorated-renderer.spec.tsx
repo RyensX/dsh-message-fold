@@ -57,6 +57,10 @@ class TestLocale {
     this.snapshot = { active, revision: this.revision }
     for (const listener of this.listeners) listener()
   }
+
+  listenerCount(): number {
+    return this.listeners.size
+  }
 }
 
 function dataOf(node: ChatConversationViewNode): Record<string, unknown> {
@@ -121,6 +125,49 @@ describe('decorated chat renderer', () => {
     renderNodes([context, closing, tail], Original, { presentations })
 
     expect(build).toHaveBeenCalledTimes(1)
+  })
+
+  it('只让实际展示插件文案的节点订阅 locale', () => {
+    const context = makeNode('context', 'context')
+    const closing = makeAssistant('closing')
+    const tail = makeTail('tail', closing)
+    const locale = new TestLocale()
+    const Original = ({ node }: ChatRendererProps) => (
+      <div>{(node as ChatConversationViewNode).key}</div>
+    )
+    const folded = renderNodes([context, closing, tail], Original, { locale })
+
+    expect(locale.listenerCount()).toBe(1)
+    folded.unmount()
+    expect(locale.listenerCount()).toBe(0)
+
+    const persistent = renderNodes([makeNode('user', 'user')], Original, { locale })
+    expect(locale.listenerCount()).toBe(0)
+    persistent.unmount()
+  })
+
+  it('turn 收起时不挂载工具组状态订阅，展开后再按需订阅', async () => {
+    const context = makeNode('context', 'context')
+    const first = makeToolNode('tool-a', settledTool('a'))
+    const second = makeToolNode('tool-b', settledTool('b'))
+    const closing = makeAssistant('closing')
+    const tail = makeTail('tail', closing)
+    const state = new PresentationStateStore()
+    const subscribedKeys: string[] = []
+    const subscribe = state.subscribe.bind(state)
+    vi.spyOn(state, 'subscribe').mockImplementation((key, listener) => {
+      subscribedKeys.push(key)
+      return subscribe(key, listener)
+    })
+    const Original = ({ node }: ChatRendererProps) => (
+      <div>{(node as ChatConversationViewNode).key}</div>
+    )
+    const user = userEvent.setup()
+    renderNodes([context, first, second, closing, tail], Original, { state })
+
+    expect(subscribedKeys.some(key => key.includes('tool-group'))).toBe(false)
+    await user.click(screen.getByRole('button', { name: /展开中间活动/ }))
+    expect(subscribedKeys.some(key => key.includes('tool-group'))).toBe(true)
   })
 
   it('支持键盘与 ARIA，并只用浅展示投影隐藏最终回答中的 reasoning', async () => {
