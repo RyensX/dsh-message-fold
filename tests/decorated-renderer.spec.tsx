@@ -20,6 +20,7 @@ import { PresentationStateStore } from '../src/client/presentation/state-store.t
 import {
   deepFreeze, makeAssistant, makeChat, makeNode, makeTail, makeToolNode, settledTool,
 } from './fixtures.ts'
+import type { ToolPreparationPresentation } from '../src/client/presentation/tool-preparation.ts'
 
 vi.mock('@deepseek-ai/dsh-client-ui-primitives', () => ({
   IconChevronRightOutline14: () => null,
@@ -65,6 +66,7 @@ function renderNodes(
   options: {
     readonly state?: PresentationStateStore
     readonly locale?: TestLocale
+    readonly preparation?: ToolPreparationPresentation | null
   } = {},
 ) {
   const chat = makeChat(nodes)
@@ -73,6 +75,10 @@ function renderNodes(
     selector(snapshot)
   const state = options.state ?? new PresentationStateStore()
   const locale = options.locale ?? new TestLocale()
+  const preparation = options.preparation ?? null
+  const useMessageFoldPreparation = <Selected,>(
+    selector: (value: ToolPreparationPresentation | null) => Selected,
+  ): Selected => selector(preparation)
   const Decorated = createDecoratedChatRenderer('test', Original, {
     state,
     locale,
@@ -85,6 +91,7 @@ function renderNodes(
         node,
         sessionId: 'session-a',
         useSession,
+        useMessageFoldPreparation,
       }))}
     </Fragment>,
   )
@@ -284,5 +291,41 @@ describe('decorated chat renderer', () => {
     await user.click(turnButton)
     await user.click(turnButton)
     expect(screen.getByRole('button', { name: 'count:0' })).toBeTruthy()
+  })
+
+  it('在唯一锚点展示原始工具名，并提供 live status 语义', () => {
+    const userNode = makeNode('user', 'user')
+    const Original = ({ node }: ChatRendererProps) => (
+      <div data-testid="original">{(node as ChatConversationViewNode).key}</div>
+    )
+    renderNodes([userNode], Original, {
+      preparation: {
+        anchorKey: 'user', turn: 1, step: 1, count: 1, name: 'web_search',
+      },
+    })
+
+    const status = screen.getByRole('status')
+    expect(status.textContent).toBe('正在准备 web_search 工具调用…')
+    expect(status.getAttribute('aria-live')).toBe('polite')
+    expect(status.getAttribute('aria-atomic')).toBe('true')
+    expect(screen.getByTestId('original')).toBeTruthy()
+  })
+
+  it('工具组尾项被折叠时仍让准备提示占据该流位置', () => {
+    const first = makeToolNode('tool-a', settledTool('a'))
+    const second = makeToolNode('tool-b', settledTool('b'))
+    const closing = makeAssistant('closing')
+    const tail = makeTail('tail', closing)
+    const Original = ({ node }: ChatRendererProps) => (
+      <div data-testid={`original-${(node as ChatConversationViewNode).key}`} />
+    )
+    renderNodes([first, second, closing, tail], Original, {
+      preparation: {
+        anchorKey: 'tool-b', turn: 1, step: 1, count: 2, name: null,
+      },
+    })
+
+    expect(screen.getByRole('status').textContent).toBe('正在准备 2 个工具调用…')
+    expect(screen.queryByTestId('original-tool-b')).toBeNull()
   })
 })

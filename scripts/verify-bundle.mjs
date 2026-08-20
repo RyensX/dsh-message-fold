@@ -28,6 +28,9 @@ assert.doesNotMatch(source, /\/Users\/sutaowei\/project\/github\/deepseek-harnes
 const modules = new Map([
   ['react', await import('react')],
   ['react/jsx-runtime', await import('react/jsx-runtime')],
+  ['@deepseek-ai/dsh-client-runtime/client', {
+    conversationContextKey: (kind, id) => `${kind.length}:${kind}${id}`,
+  }],
   ['@deepseek-ai/dsh-client-ui-primitives', { IconChevronRightOutline14: () => null }],
 ])
 const exported = handoff.factory((id) => {
@@ -36,13 +39,23 @@ const exported = handoff.factory((id) => {
 })
 
 assert.equal(typeof exported.apply, 'function')
-assert.deepEqual([...exported.inject], ['slots', 'sessions', 'locale'])
+assert.deepEqual([...exported.inject], [
+  'slots', 'sessions', 'locale', 'connection', 'remote', 'settingsScope',
+])
 assert.ok(existsSync(resolve(root, 'lib/client.js.map')))
 assert.ok(existsSync(resolve(root, 'lib/types/index.d.ts')))
 assert.ok(existsSync(resolve(root, 'lib/types/client/index.d.ts')))
 
 const host = await import(`${pathToFileURL(resolve(root, 'lib/index.js')).href}?verify=${Date.now()}`)
 assert.equal(typeof host.apply, 'function')
-assert.equal(host.apply(), undefined)
+let registration
+assert.equal(host.apply({
+  inject(dependencies, callback) {
+    assert.deepEqual(dependencies, ['settings'])
+    callback({ settings: { register: (...args) => { registration = args } } })
+  },
+}), undefined)
+assert.equal(String(registration?.[0]), 'dsh-message-fold')
+assert.equal(typeof registration?.[1], 'function')
 
 console.log('bundle handoff verified')

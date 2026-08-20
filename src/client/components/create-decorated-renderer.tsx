@@ -10,10 +10,15 @@ import { buildTurnPresentation } from '../presentation/build-turn-presentation.t
 import {
   PresentationStateStore, toolGroupStateKey, turnStateKey,
 } from '../presentation/state-store.ts'
+import type { ToolPreparationPresentation } from '../presentation/tool-preparation.ts'
 import { DisclosureButton } from './DisclosureButton.tsx'
+import { ToolPreparationStatus } from './ToolPreparationStatus.tsx'
 
 type UnknownRecord = Record<string, unknown>
 type UseSession = <Selected>(selector: (snapshot: ConversationSnapshot) => Selected) => Selected
+type UseToolPreparation = <Selected>(
+  selector: (snapshot: ToolPreparationPresentation | null) => Selected,
+) => Selected
 
 export interface LocaleSnapshotSource {
   getSnapshot(): unknown
@@ -30,6 +35,7 @@ interface DecoratableProps extends ChatRendererProps {
   readonly node: ChatConversationViewNode
   readonly sessionId: string
   readonly useSession: UseSession
+  readonly useMessageFoldPreparation: UseToolPreparation
 }
 
 function record(value: unknown): UnknownRecord | null {
@@ -43,6 +49,7 @@ function decoratableProps(props: ChatRendererProps): DecoratableProps | null {
     && typeof node.kind === 'string'
     && typeof props.sessionId === 'string'
     && typeof props.useSession === 'function'
+    && typeof props.useMessageFoldPreparation === 'function'
     ? props as DecoratableProps
     : null
 }
@@ -105,6 +112,8 @@ function ActiveDecoratedRenderer({
 
   // ChatSnapshot 内部 reader 会原地接收迟到节点，不能按 snapshot 身份永久缓存规划。
   const plan = turn === null ? null : buildTurnPresentation(chat, turn)
+  const preparation = props.useMessageFoldPreparation(value =>
+    value?.anchorKey === props.node.key ? value : null)
   const nodePlan = plan?.nodes.get(props.node.key)
   const turnKey = turnStateKey(props.sessionId, turn ?? -1)
   const groupKey = toolGroupStateKey(props.sessionId, turn ?? -1, nodePlan?.toolGroup?.firstKey ?? props.node.key)
@@ -113,7 +122,15 @@ function ActiveDecoratedRenderer({
   const turnOverride = useStoredFlag(dependencies.state, turnKey, readTurn)
   const groupOverride = useStoredFlag(dependencies.state, groupKey, readGroup)
 
-  if (plan === null || nodePlan === undefined || turn === null) return originalNode(original, props)
+  if (plan === null || nodePlan === undefined || turn === null) {
+    const originalBody = originalNode(original, props)
+    return preparation === null ? originalBody : (
+      <div className="dsh-message-fold-stack">
+        {originalBody}
+        <ToolPreparationStatus presentation={preparation} t={dependencies.t} />
+      </div>
+    )
+  }
   const collapsed = plan.canCollapse ? turnOverride ?? plan.defaultCollapsed : false
   const groupExpanded = groupOverride ?? false
   const isAnchor = plan.canCollapse && plan.anchorKey === props.node.key
@@ -130,6 +147,7 @@ function ActiveDecoratedRenderer({
 
   const displayNode = withoutEmptyReasoning(props.node)
   let body: ReactNode
+  let bodyIsOnlyHiddenMarker = false
   if (nodePlan.toolGroup !== undefined) {
     if (nodePlan.toolGroupRole === 'leader') {
       body = (
@@ -145,27 +163,44 @@ function ActiveDecoratedRenderer({
         </div>
       )
     } else {
+      bodyIsOnlyHiddenMarker = !groupExpanded
       body = groupExpanded ? originalNode(original, props, displayNode) : hiddenFlowItem()
     }
   } else {
     body = originalNode(original, props, displayNode)
   }
 
+  let rendered: ReactNode
+  let renderedIsOnlyHiddenMarker = false
   if (nodePlan.zone === 'collapsible') {
     if (turnButton !== null) {
-      return <div className="dsh-message-fold-stack">{turnButton}{collapsed ? null : body}</div>
+      rendered = <div className="dsh-message-fold-stack">{turnButton}{collapsed ? null : body}</div>
+    } else if (collapsed) {
+      rendered = hiddenFlowItem()
+      renderedIsOnlyHiddenMarker = true
+    } else {
+      rendered = body
+      renderedIsOnlyHiddenMarker = bodyIsOnlyHiddenMarker
     }
-    return collapsed ? hiddenFlowItem() : body
-  }
-
-  if (nodePlan.zone === 'closing') {
+  } else if (nodePlan.zone === 'closing') {
     const closing = collapsed && nodePlan.stripReasoningWhenCollapsed === true
       ? originalNode(original, props, withoutReasoning(props.node))
       : body
-    return turnButton === null ? closing : <div className="dsh-message-fold-stack">{turnButton}{closing}</div>
+    rendered = turnButton === null
+      ? closing
+      : <div className="dsh-message-fold-stack">{turnButton}{closing}</div>
+  } else {
+    rendered = body
+    renderedIsOnlyHiddenMarker = bodyIsOnlyHiddenMarker
   }
 
-  return body
+  if (preparation === null) return rendered
+  return (
+    <div className="dsh-message-fold-stack">
+      {renderedIsOnlyHiddenMarker ? null : rendered}
+      <ToolPreparationStatus presentation={preparation} t={dependencies.t} />
+    </div>
+  )
 }
 
 /** 创建一个 renderer wrapper，展示层不需要知道 DSH entry 的内部结构。 */

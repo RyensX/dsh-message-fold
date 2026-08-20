@@ -58,15 +58,25 @@ describe('架构边界', () => {
       bundle: { patch: './cordis.patch.yml' },
       client: {
         inject: [
+          '@deepseek-ai/dsh-client-connection',
           '@deepseek-ai/dsh-client-runtime',
           '@deepseek-ai/dsh-client-locale',
           '@deepseek-ai/dsh-client-ui-conversation',
+          '@deepseek-ai/dsh-client-ui-settings',
+          '@deepseek-ai/dsh-api-remotes',
         ],
         platform: 'web',
       },
     })
     expect(manifest.peerDependencies['@deepseek-ai/cordis']).toBe('4.0.1')
     expect(manifest.peerDependencies['@deepseek-ai/dsh-client-runtime']).toBe('0.1.0-rc.7')
+    expect(manifest.peerDependencies['@deepseek-ai/dsh-client-ui-settings']).toBe('0.1.0-rc.7')
+  })
+
+  it('工具准备实现不扫描完整 ChatNodeStore，也不注册额外 Conversation Definition', () => {
+    const source = sourceFiles(srcRoot).map(path => readFileSync(path, 'utf8')).join('\n')
+    expect(source).not.toMatch(/chat\.nodes\.values\s*\(/)
+    expect(source).not.toMatch(/conversationEvents\.register\s*\(/)
   })
 
   it('cordis patch 只插入插件自身一项', () => {

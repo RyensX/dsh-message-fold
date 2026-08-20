@@ -12,6 +12,8 @@ describe('样式生命周期', () => {
     expect(style?.textContent).toContain('prefers-reduced-motion')
     expect(style?.textContent).toContain('[data-chat-flow-key]:has(')
     expect(style?.textContent).toContain('[data-dsh-message-fold-hidden]')
+    expect(style?.textContent).toContain('.dsh-message-fold-preparation')
+    expect(style?.textContent).toContain('.dsh-message-fold-switch')
     dispose()
     expect(document.head.querySelector('style[data-plugin="dsh-message-fold"]')).toBeNull()
   })
