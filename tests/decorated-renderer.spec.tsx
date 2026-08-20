@@ -13,6 +13,7 @@ import type {
 import {
   createDecoratedChatRenderer,
 } from '../src/client/components/create-decorated-renderer.tsx'
+import { buildTurnPresentation } from '../src/client/presentation/build-turn-presentation.ts'
 import {
   en, zh, type MessageFoldKey, type MessageFoldTranslate,
 } from '../src/client/locales.ts'
@@ -21,6 +22,7 @@ import {
   deepFreeze, makeAssistant, makeChat, makeNode, makeTail, makeToolNode, settledTool,
 } from './fixtures.ts'
 import type { ToolPreparationPresentation } from '../src/client/presentation/tool-preparation.ts'
+import { TurnPresentationCache } from '../src/client/presentation/turn-presentation-cache.ts'
 
 vi.mock('@deepseek-ai/dsh-client-ui-primitives', () => ({
   IconChevronRightOutline14: () => null,
@@ -65,6 +67,7 @@ function renderNodes(
   Original: ComponentType<ChatRendererProps>,
   options: {
     readonly state?: PresentationStateStore
+    readonly presentations?: TurnPresentationCache
     readonly locale?: TestLocale
     readonly preparation?: ToolPreparationPresentation | null
   } = {},
@@ -74,6 +77,7 @@ function renderNodes(
   const useSession = <Selected,>(selector: (value: ConversationSnapshot) => Selected): Selected =>
     selector(snapshot)
   const state = options.state ?? new PresentationStateStore()
+  const presentations = options.presentations ?? new TurnPresentationCache()
   const locale = options.locale ?? new TestLocale()
   const preparation = options.preparation ?? null
   const useMessageFoldPreparation = <Selected,>(
@@ -81,6 +85,7 @@ function renderNodes(
   ): Selected => selector(preparation)
   const Decorated = createDecoratedChatRenderer('test', Original, {
     state,
+    presentations,
     locale,
     t: locale.t,
   }) as ComponentType<ChatRendererProps>
@@ -95,10 +100,25 @@ function renderNodes(
       }))}
     </Fragment>,
   )
-  return { ...result, state, locale }
+  return { ...result, state, presentations, locale }
 }
 
 describe('decorated chat renderer', () => {
+  it('同一 turn 的多个 renderer 共享一次展示规划构建', () => {
+    const context = makeNode('context', 'context')
+    const closing = makeAssistant('closing')
+    const tail = makeTail('tail', closing)
+    const build = vi.fn(buildTurnPresentation)
+    const presentations = new TurnPresentationCache(build)
+    const Original = ({ node }: ChatRendererProps) => (
+      <div>{(node as ChatConversationViewNode).key}</div>
+    )
+
+    renderNodes([context, closing, tail], Original, { presentations })
+
+    expect(build).toHaveBeenCalledTimes(1)
+  })
+
   it('支持键盘与 ARIA，并只用浅展示投影隐藏最终回答中的 reasoning', async () => {
     const context = deepFreeze(makeNode('context', 'context'))
     const closing = deepFreeze(makeAssistant('closing', {

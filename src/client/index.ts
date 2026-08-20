@@ -11,6 +11,7 @@ import {
 import { en, NS, zh } from './locales.ts'
 import { PresentationStateStore } from './presentation/state-store.ts'
 import { ToolPreparationSourceRegistry } from './presentation/tool-preparation-source.ts'
+import { TurnPresentationCache } from './presentation/turn-presentation-cache.ts'
 import { installStyles } from './styles.ts'
 
 export const inject = [
@@ -20,6 +21,7 @@ export const inject = [
 /** 安装只影响展示的会话 renderer 装饰器。 */
 export function apply(ctx: ClientContext): void {
   const state = new PresentationStateStore()
+  const presentations = new TurnPresentationCache()
   const t = ctx.locale.bind(NS)
   const settings = ctx.settingsScope.bind<MessageFoldSettings>({
     namespace: MESSAGE_FOLD_SETTINGS_NAMESPACE,
@@ -64,6 +66,7 @@ export function apply(ctx: ClientContext): void {
     })
     return adapter.install((entryKey, original) => createDecoratedChatRenderer(entryKey, original, {
       state,
+      presentations,
       locale,
       t,
     }))

@@ -1,16 +1,16 @@
 import {
   Fragment, createElement, useCallback, useSyncExternalStore, type ReactNode,
 } from 'react'
-import type { ChatConversationViewNode, ChatSnapshot, ConversationSnapshot } from '@deepseek-ai/dsh-client-runtime/client'
+import type { ChatConversationViewNode, ConversationSnapshot } from '@deepseek-ai/dsh-client-runtime/client'
 import type { ChatRenderer, ChatRendererProps } from '../adapter/renderer-decorator-port.ts'
 import {
   toolSummaryText, turnSummaryText, type MessageFoldTranslate,
 } from '../locales.ts'
-import { buildTurnPresentation } from '../presentation/build-turn-presentation.ts'
 import {
   PresentationStateStore, toolGroupStateKey, turnStateKey,
 } from '../presentation/state-store.ts'
 import type { ToolPreparationPresentation } from '../presentation/tool-preparation.ts'
+import type { TurnPresentationCache } from '../presentation/turn-presentation-cache.ts'
 import { DisclosureButton } from './DisclosureButton.tsx'
 import { ToolPreparationStatus } from './ToolPreparationStatus.tsx'
 
@@ -27,6 +27,7 @@ export interface LocaleSnapshotSource {
 
 export interface DecoratedRendererDependencies {
   readonly state: PresentationStateStore
+  readonly presentations: TurnPresentationCache
   readonly locale: LocaleSnapshotSource
   readonly t: MessageFoldTranslate
 }
@@ -106,12 +107,15 @@ function ActiveDecoratedRenderer({
   readonly props: DecoratableProps
   readonly dependencies: DecoratedRendererDependencies
 }) {
-  const chat = props.useSession(snapshot => snapshot.chat) as ChatSnapshot
   const turn = turnOf(props.node)
+  const selectPlan = useCallback(
+    (snapshot: ConversationSnapshot) => turn === null
+      ? null
+      : dependencies.presentations.get(snapshot.chat, turn),
+    [dependencies.presentations, turn],
+  )
+  const plan = props.useSession(selectPlan)
   useSyncExternalStore(dependencies.locale.subscribe, dependencies.locale.getSnapshot, dependencies.locale.getSnapshot)
-
-  // ChatSnapshot 内部 reader 会原地接收迟到节点，不能按 snapshot 身份永久缓存规划。
-  const plan = turn === null ? null : buildTurnPresentation(chat, turn)
   const preparation = props.useMessageFoldPreparation(value =>
     value?.anchorKey === props.node.key ? value : null)
   const nodePlan = plan?.nodes.get(props.node.key)
