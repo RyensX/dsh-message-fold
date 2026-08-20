@@ -18,7 +18,9 @@ import { NodeProjectionCache } from '../src/client/presentation/node-projection-
 import {
   en, zh, type MessageFoldKey, type MessageFoldTranslate,
 } from '../src/client/locales.ts'
-import { PresentationStateStore } from '../src/client/presentation/state-store.ts'
+import {
+  PresentationStateStore, toolGroupStateKey,
+} from '../src/client/presentation/state-store.ts'
 import {
   deepFreeze, makeAssistant, makeChat, makeNode, makeTail, makeToolNode, settledTool,
 } from './fixtures.ts'
@@ -164,10 +166,11 @@ describe('decorated chat renderer', () => {
     )
     const user = userEvent.setup()
     renderNodes([context, first, second, closing, tail], Original, { state })
+    const groupKey = toolGroupStateKey('session-a', 1, 'tool-a')
 
-    expect(subscribedKeys.some(key => key.includes('tool-group'))).toBe(false)
+    expect(subscribedKeys).not.toContain(groupKey)
     await user.click(screen.getByRole('button', { name: /展开中间活动/ }))
-    expect(subscribedKeys.some(key => key.includes('tool-group'))).toBe(true)
+    expect(subscribedKeys).toContain(groupKey)
   })
 
   it('支持键盘与 ARIA，并只用浅展示投影隐藏最终回答中的 reasoning', async () => {

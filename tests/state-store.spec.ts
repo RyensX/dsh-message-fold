@@ -4,6 +4,24 @@ import {
 } from '../src/client/presentation/state-store.ts'
 
 describe('PresentationStateStore', () => {
+  it('长度前缀状态键在特殊字符和不同作用域之间保持唯一', () => {
+    const sessions = ['', ':', '1:a', '"quoted"', '会话🔧']
+    const turns = [-1, 0, 1, 12]
+    const nodeKeys = ['', ':', '2:ab', '工具🔧']
+    const keys = new Set<string>()
+
+    for (const session of sessions) {
+      for (const turn of turns) {
+        keys.add(turnStateKey(session, turn))
+        for (const nodeKey of nodeKeys) {
+          keys.add(toolGroupStateKey(session, turn, nodeKey))
+        }
+      }
+    }
+
+    expect(keys.size).toBe(sessions.length * turns.length * (nodeKeys.length + 1))
+  })
+
   it('按 session、turn 和工具组身份隔离状态', () => {
     const store = new PresentationStateStore()
     const turnA = turnStateKey('session-a', 1)

@@ -5,16 +5,13 @@ interface StoredFlag {
   readonly value: boolean
 }
 
-function compositeKey(parts: readonly (string | number)[]): string {
-  return JSON.stringify(parts)
-}
-
+/** 长度前缀允许 id/key 包含任意分隔符，同时避开热渲染路径中的 JSON 序列化。 */
 export function turnStateKey(sessionId: string, turn: number): string {
-  return compositeKey(['turn', sessionId, turn])
+  return `t:${sessionId.length}:${sessionId}:${turn}`
 }
 
 export function toolGroupStateKey(sessionId: string, turn: number, firstNodeKey: string): string {
-  return compositeKey(['tool-group', sessionId, turn, firstNodeKey])
+  return `g:${sessionId.length}:${sessionId}:${turn}:${firstNodeKey.length}:${firstNodeKey}`
 }
 
 /** 页面内的用户选择；不会写入 Session 或任何浏览器持久化。 */
