@@ -43,6 +43,7 @@ function formalToolExists(snapshot: ConversationSnapshot, callId: string): boole
  */
 export function buildToolPreparationPresentation(
   snapshot: ConversationSnapshot,
+  previous: ToolPreparationPresentation | null = null,
 ): ToolPreparationPresentation | null {
   try {
     if (!snapshot.running || snapshot.openState !== 'open') return null
@@ -59,16 +60,18 @@ export function buildToolPreparationPresentation(
       || assistant.turn !== turnNumber
       || assistant.step !== step.step) return null
 
-    const pending: { callId: string; name: string }[] = []
+    let pendingCount = 0
+    let pendingName: string | null = null
     for (const block of assistant.blocks) {
       const value = record(block)
       if (value === null) return null
       if (value.kind !== 'tool-call') continue
       if (typeof value.callId !== 'string' || typeof value.name !== 'string') return null
       if (value.callId !== '' && formalToolExists(snapshot, value.callId)) continue
-      pending.push({ callId: value.callId, name: value.name })
+      pendingCount += 1
+      pendingName = pendingCount === 1 && value.name !== '' ? value.name : null
     }
-    if (pending.length === 0) return null
+    if (pendingCount === 0) return null
 
     const turnKeys = chat.locations.getTurn(turnNumber)
     const anchorKey = turnKeys.at(-1)
@@ -76,12 +79,19 @@ export function buildToolPreparationPresentation(
     const anchor = chat.nodes.get(anchorKey)
     if (anchor?.target !== 'chat' || anchor.visibility !== 'visible') return null
 
+    if (previous !== null
+      && previous.anchorKey === anchorKey
+      && previous.turn === turnNumber
+      && previous.step === step.step
+      && previous.count === pendingCount
+      && previous.name === pendingName) return previous
+
     return {
       anchorKey,
       turn: turnNumber,
       step: step.step,
-      count: pending.length,
-      name: pending.length === 1 && pending[0]?.name !== '' ? pending[0]?.name ?? null : null,
+      count: pendingCount,
+      name: pendingName,
     }
   } catch {
     return null

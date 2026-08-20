@@ -25,12 +25,12 @@ export class ToolPreparationSource implements HostObservable<ToolPreparationPres
     private readonly session: SessionFace,
     private readonly settings: SettingsScope<MessageFoldSettings>,
   ) {
-    this.snapshot = this.read()
+    this.snapshot = this.read(null)
   }
 
   readonly getSnapshot = (): ToolPreparationPresentation | null => {
     // 无订阅者时没有上游监听；首次挂载前同步追上最新值。
-    if (this.listeners.size === 0) this.adopt(this.read(), false)
+    if (this.listeners.size === 0) this.adopt(this.read(this.snapshot), false)
     return this.snapshot
   }
 
@@ -48,12 +48,12 @@ export class ToolPreparationSource implements HostObservable<ToolPreparationPres
     this.listeners.clear()
   }
 
-  private read(): ToolPreparationPresentation | null {
+  private read(previous: ToolPreparationPresentation | null): ToolPreparationPresentation | null {
     if (!toolPreparationEnabled(this.settings.getSnapshot())) return null
-    return buildToolPreparationPresentation(this.session.getSnapshot())
+    return buildToolPreparationPresentation(this.session.getSnapshot(), previous)
   }
 
-  private recompute = (): void => { this.adopt(this.read(), true) }
+  private recompute = (): void => { this.adopt(this.read(this.snapshot), true) }
 
   private adopt(next: ToolPreparationPresentation | null, notify: boolean): void {
     if (sameToolPreparation(this.snapshot, next)) return
@@ -69,7 +69,7 @@ export class ToolPreparationSource implements HostObservable<ToolPreparationPres
   }
 
   private start(): void {
-    this.adopt(this.read(), false)
+    this.adopt(this.read(this.snapshot), false)
     this.stopSession = this.session.subscribe(this.recompute)
     this.stopSettings = this.settings.subscribe(this.recompute)
   }

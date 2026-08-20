@@ -141,6 +141,18 @@ describe('工具调用准备展示派生', () => {
     expect(JSON.stringify(result)).not.toContain('secret')
   })
 
+  it('纯参数 delta 复用上一份展示对象', () => {
+    const first = buildToolPreparationPresentation(preparationSnapshot({
+      blocks: [{ kind: 'tool-call', callId: 'c1', name: 'bash', argsRaw: '{' }],
+    }))
+    const next = buildToolPreparationPresentation(preparationSnapshot({
+      blocks: [{ kind: 'tool-call', callId: 'c1', name: 'bash', argsRaw: '{"x":1}' }],
+    }), first)
+
+    expect(first).not.toBeNull()
+    expect(next).toBe(first)
+  })
+
   it('assistant settled 后保留提示，正式 tool/call 节点出现后按 callId 接管', () => {
     const blocks = [{ kind: 'tool-call', callId: 'call-1', name: 'bash', argsRaw: '{}' }]
     expect(buildToolPreparationPresentation(preparationSnapshot({
@@ -191,6 +203,7 @@ describe('ToolPreparationSource', () => {
     const listenerB = vi.fn()
     const offA = source.subscribe(listenerA)
     const offB = source.subscribe(listenerB)
+    const beforeDelta = source.getSnapshot()
 
     expect(session.listenerCount()).toBe(1)
     expect(settings.listenerCount()).toBe(1)
@@ -199,6 +212,7 @@ describe('ToolPreparationSource', () => {
       blocks: [{ kind: 'tool-call', callId: 'c1', name: 'bash', argsRaw: '{"x":1}' }],
     }))
     expect(listenerA).not.toHaveBeenCalled()
+    expect(source.getSnapshot()).toBe(beforeDelta)
 
     session.setValue(preparationSnapshot({
       blocks: [{ kind: 'tool-call', callId: 'c1', name: 'bash_new', argsRaw: '{"x":1}' }],
