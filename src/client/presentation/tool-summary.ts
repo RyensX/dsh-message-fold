@@ -53,12 +53,13 @@ export function summarizeToolNodes(nodes: readonly ChatNode[]): ToolSummary | nu
   let running = 0
   let failed = 0
 
-  while (pending.length > 0) {
-    const block = pending.shift()
+  for (let index = 0; index < pending.length; index += 1) {
+    const block = pending[index]
     if (block === undefined || visited.has(block)) continue
     const settled = block.kind === 'tool-result'
+    const subCalls = block.subCalls
     if (typeof block.callId !== 'string'
-      || !Array.isArray(block.subCalls)
+      || !Array.isArray(subCalls)
       || (block.kind !== undefined && !settled)
       || (settled && typeof block.isError !== 'boolean')) return null
     visited.add(block)
@@ -66,7 +67,7 @@ export function summarizeToolNodes(nodes: readonly ChatNode[]): ToolSummary | nu
     categories[categoryOf(block)] += 1
     if (!settled) running += 1
     if (settled && block.isError === true) failed += 1
-    for (const child of block.subCalls) {
+    for (const child of subCalls) {
       const childRecord = record(child)
       if (childRecord === null) return null
       pending.push(childRecord)

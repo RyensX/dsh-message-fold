@@ -151,9 +151,12 @@ function durationOf(turn: TurnLocation, closing: ChatConversationViewNode | null
     : null
 }
 
-function structurallySafe(node: ChatConversationViewNode): boolean {
+function structurallySafe(
+  node: ChatConversationViewNode,
+  validTools: ReadonlyMap<string, ToolSummary>,
+): boolean {
   if (node.kind === 'assistant-step') return assistantIsWellFormed(node)
-  if (node.kind === 'tool-call') return summarizeToolNodes([node]) !== null
+  if (node.kind === 'tool-call') return validTools.has(node.key)
   if (node.kind === 'workflow-run') return workflowStatus(node) !== null
   return record(node.data) !== null
 }
@@ -188,6 +191,14 @@ export function buildTurnPresentation(chat: ChatSnapshot, turnNumber: number): T
     const plans = new Map<string, NodePresentation>()
     const activeKeys = new Set<string>()
 
+    // 单项结构校验会被 zone 规划和工具分组共同使用，避免重复遍历同一工具树。
+    const validTools = new Map<string, ToolSummary>()
+    for (const node of nodes) {
+      if (node.kind !== 'tool-call') continue
+      const summary = summarizeToolNodes([node])
+      if (summary !== null) validTools.set(node.key, summary)
+    }
+
     for (let index = 0; index < nodes.length; index += 1) {
       const node = nodes[index]
       if (node === undefined) continue
@@ -195,7 +206,7 @@ export function buildTurnPresentation(chat: ChatSnapshot, turnNumber: number): T
       if (node === closing) zone = 'closing'
       else if (closingIndex >= 0 && index > closingIndex) zone = 'persistent'
       else if (PERSISTENT_KINDS.has(node.kind) || !COLLAPSIBLE_KINDS.has(node.kind)) zone = 'persistent'
-      else if (!structurallySafe(node)) zone = 'persistent'
+      else if (!structurallySafe(node, validTools)) zone = 'persistent'
       else if (node.kind === 'workflow-run') {
         const status = workflowStatus(node)
         zone = status === 'failed' || status === 'cancelled' || status === 'interrupted'
@@ -209,12 +220,6 @@ export function buildTurnPresentation(chat: ChatSnapshot, turnNumber: number): T
     }
 
     // 工具组独立于整个 turn 的折叠；无效工具会成为边界，不会拖累相邻有效组。
-    const validTools = new Map<string, ToolSummary>()
-    for (const node of nodes) {
-      if (node.kind !== 'tool-call') continue
-      const summary = summarizeToolNodes([node])
-      if (summary !== null) validTools.set(node.key, summary)
-    }
     for (let index = 0; index < nodes.length;) {
       const first = nodes[index]
       if (first?.kind !== 'tool-call' || !validTools.has(first.key)) {
@@ -224,7 +229,9 @@ export function buildTurnPresentation(chat: ChatSnapshot, turnNumber: number): T
       let end = index + 1
       while (nodes[end]?.kind === 'tool-call' && validTools.has(nodes[end]?.key ?? '')) end += 1
       const groupNodes = nodes.slice(index, end)
-      const summary = summarizeToolNodes(groupNodes)
+      const summary = groupNodes.length === 1
+        ? validTools.get(first.key) ?? null
+        : summarizeToolNodes(groupNodes)
       if (summary === null) {
         for (const node of groupNodes) plans.set(node.key, { zone: 'persistent' })
         index = end

@@ -49,9 +49,47 @@ describe('summarizeToolNodes', () => {
       makeToolNode('bad-child', { ...runningTool('x'), subCalls: [null] }),
     ])).toBeNull()
   })
+
+  it('使用游标遍历循环与共享子调用，且每个 block 只读取一次子调用列表', () => {
+    let childReads = 0
+    const shared = runningTool('shared')
+    const root: Record<string, unknown> = {
+      ...settledTool('root'),
+      get subCalls(): unknown[] {
+        childReads += 1
+        return [shared, shared, root]
+      },
+    }
+
+    expect(summarizeToolNodes([makeToolNode('tool', root)])).toMatchObject({
+      total: 2,
+      running: 1,
+    })
+    expect(childReads).toBe(1)
+  })
 })
 
 describe('工具分组规划', () => {
+  it('单个工具的结构校验与摘要共用同一次工具树遍历', () => {
+    let childReads = 0
+    const root = {
+      ...settledTool('single'),
+      get subCalls() {
+        childReads += 1
+        return []
+      },
+    }
+    const tool = makeToolNode('tool', root)
+    const closing = makeAssistant('closing')
+
+    const plan = buildTurnPresentation(makeChat([
+      tool, closing, makeTail('tail', closing),
+    ]), 1)
+
+    expect(plan.nodes.get('tool')).toEqual({ zone: 'collapsible' })
+    expect(childReads).toBe(1)
+  })
+
   it('只聚合连续的两个及以上有效根调用', () => {
     const first = makeToolNode('tool-a', settledTool('a'))
     const second = makeToolNode('tool-b', settledTool('b'))
