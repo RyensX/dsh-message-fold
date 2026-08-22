@@ -4,27 +4,23 @@
 
 为 DeepSeek Harness 提供 Codex 风格的会话消息折叠。
 
-![折叠例子](./docs/images/example.gif "折叠例子")
-
 > 插件只改变展示效果，不修改任何数据。
 
-## 展示规则
+## 效果
 
-- 连续两个及以上工具调用合并为一条可展开摘要；单个工具继续使用 DSH 原 renderer。
-- 合并组摘要使用“已调用 3 次工具 · 读取 2 · 命令 1 · 正在调用 bash、open”格式；读取、命令等分类按各类型第一次调用的顺序排列，活跃叶子工具按启动顺序显示，同名并行调用合并计数，全部结束后只移除“正在调用”部分。
-- turn 有可信最终回答后，中间 assistant、上下文、命令、压缩、重试、工具及 workflow 默认收进“耗时 {duration}”。
-- 最终回答、错误、turn 收尾节点、失败的 workflow，以及最终回答后的内容始终可见。
-- 最终回答前的失败工具仍属于中间活动；展开 turn 后可从工具组摘要查看失败数量与详情。
-- 运行中的工具或 workflow 会让 turn 默认保持展开，用户仍可手动折叠。
-- 未知节点、缺失历史或无法确认的结构全部 fail-open，直接交给 DSH 原 renderer。
-- 最终回答中的非空 reasoning 只在折叠态通过临时浅拷贝隐藏；空 reasoning
-  始终从展示投影中过滤，原节点引用和值不会改变。
+- 连续2个及以上工具调用自动合并，可展开
+- 最终回复后，中间过程都会被自动折叠，展示为"耗时 x秒"，可展开
 
-turn 折叠与工具组折叠相互独立。展开被隐藏的内容会重新挂载原 renderer，因此 renderer 自己的临时 UI 状态会重建，但会话数据不受影响。
+![折叠例子](./docs/images/example.gif "折叠例子")
 
 ## 安装
 
-构建后把当前目录加入 Web profile：
+Github安装：
+```sh
+dsh plugin --profile web add github:RyensX/dsh-message-fold
+```
+
+源码安装：
 
 ```sh
 pnpm install

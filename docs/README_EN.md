@@ -4,35 +4,28 @@
 
 Codex-style conversation message folding for DeepSeek Harness.
 
-![fold-example](../docs/images/example.gif "fold-example")
-
 > This plugin only changes presentation and does not modify any data.
 
-## Display Rules
+## Effect
 
-- Two or more consecutive tool calls are combined into a single expandable summary; a single tool call continues to use DSH's original renderer.
-- A merged group uses the format "Called 3 tools · Read 2 · Command 1 · Calling bash, open"; categories such as Read and Command are ordered by each category's first invocation, active leaf tools appear in start order, parallel calls with the same name are counted together, and only the "Calling" segment is removed after all calls settle.
-- Once a turn has a reliable final answer, intermediate assistant messages, context, commands, compactions, retries, tools, and workflows are collapsed under "Worked for {duration}" by default.
-- The final answer, errors, turn-closing nodes, failed workflows, and any content after the final answer always remain visible.
-- Failed tool calls before the final answer are still considered intermediate activity. After expanding the turn, you can view the failure count and details in the tool-group summary.
-- A running tool or workflow keeps the turn expanded by default, though users can still collapse it manually.
-- Unknown nodes, missing history, or structures that cannot be verified all fail open and are passed directly to DSH's original renderer.
-- Non-empty reasoning in the final answer is hidden in the collapsed state only, using a temporary shallow copy. Empty reasoning is always filtered out of the presentation projection; the original node references and values remain unchanged.
+- Two or more consecutive tool calls will be automatically merged; this can be expanded.
+- After the final response, the intermediate processes will be automatically collapsed and displayed as "Worked for {duration}"; this can be expanded.
 
-Turn folding and tool-group folding are independent. Expanding hidden content remounts the original renderer, so the renderer's own transient UI state is recreated, but the conversation data remains unaffected.
+![fold-example](../docs/images/example.gif "fold-example")
 
 ## Installation
 
-After building, add the current directory to the Web profile:
-
+Install from GitHub:
 ```sh
-pnpm install
-pnpm build
-dsh plugin --profile web add .
+dsh plugin --profile web add github:RyensX/dsh-message-fold
+```
+
+Install from source code:
+```sh
+pnpm install pnpm build dsh plugin --profile web add .
 ```
 
 To uninstall:
-
 ```sh
 dsh plugin --profile web remove dsh-message-fold
 ```
