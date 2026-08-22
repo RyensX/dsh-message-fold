@@ -50,3 +50,7 @@ npm pack --dry-run
 ```
 
 `verify` 会依次执行类型检查、单元与 React 测试、Node/Web 双入口构建，以及 lazy-CJS handoff 检查。
+
+## 友链
+
+[LinuxDo](https://linux.do/)
