@@ -4,6 +4,8 @@
 
 Codex-style conversation message folding for DeepSeek Harness.
 
+![fold-example](../docs/images/example.gif "fold-example")
+
 > This plugin only changes presentation and does not modify any data.
 
 ## Display Rules

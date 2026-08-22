@@ -4,6 +4,8 @@
 
 为 DeepSeek Harness 提供 Codex 风格的会话消息折叠。
 
+![折叠例子](./docs/images/example.gif "折叠例子")
+
 > 插件只改变展示效果，不修改任何数据。
 
 ## 展示规则
